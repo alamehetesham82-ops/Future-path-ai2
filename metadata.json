@@ -1,0 +1,12 @@
+{
+  "name": "FuturePath AI",
+  "description": "Production-ready AI-powered Indian education and career platform featuring academic roadmaps, sports corridor portals, certified achievement folders, resume compiler, colleges search guides, and secure Firebase databases.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
