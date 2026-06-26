@@ -339,7 +339,8 @@ export function CompeteToCrush({ userProfile, user: initialUser }: { userProfile
   useEffect(() => {
     const profile = userProfile || (user as any)?.profile;
     if (profile) {
-      setIsUnlocked(!!profile.premiumUnlocked);
+      const unlocked = !!profile.premiumUnlocked || !!profile.premium;
+      setIsUnlocked(unlocked);
     } else {
       setIsUnlocked(false);
     }
@@ -1483,6 +1484,7 @@ export function CompeteToCrush({ userProfile, user: initialUser }: { userProfile
             if (verifyData.success) {
               await updateProfile({
                 premiumUnlocked: true,
+                premium: true,
                 amountPaid: 49,
                 purchaseDate: new Date().toISOString(),
                 paymentId: response.razorpay_payment_id
