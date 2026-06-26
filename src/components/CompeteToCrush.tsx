@@ -1411,8 +1411,19 @@ export function CompeteToCrush({ user: initialUser }: { userProfile?: any; user?
 
   // ── RAZORPAY PAYMENT HANDLER ──────────────────────────────────────────────
   const handleUnlockPremium = async () => {
-    const activeProfile = userProfile || (user as any)?.profile;
-    if (!activeProfile) {
+    if (authLoading) {
+      setPaymentError("Please wait, verifying your session…");
+      setPaymentStatus("failed");
+      return;
+    }
+
+    const activeProfile = userProfile || (user ? {
+      uid: user.uid,
+      name: (user as any).displayName || user.email?.split("@")[0] || "User",
+      email: user.email || "",
+    } : null);
+
+    if (!activeProfile || !user) {
       setPaymentError("You must be logged in to proceed with the purchase.");
       setPaymentStatus("failed");
       return;
@@ -1587,9 +1598,10 @@ export function CompeteToCrush({ user: initialUser }: { userProfile?: any; user?
           <div className="pt-4 max-w-xs mx-auto space-y-4">
             <button
               onClick={handleUnlockPremium}
-              className="w-full py-3.5 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-xl shadow-yellow-500/20 active:scale-95 transition-all cursor-pointer hover:shadow-2xl"
+              disabled={authLoading}
+              className="w-full py-3.5 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-xl shadow-yellow-500/20 active:scale-95 transition-all cursor-pointer hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {paymentStatus === "failed" ? "Try Again →" : "Unlock Premium Access →"}
+              {authLoading ? "Loading session…" : paymentStatus === "failed" ? "Try Again →" : "Unlock Premium Access →"}
             </button>
             <p className="text-[10px] text-slate-500 font-mono">
               ₹49 secure checkout · One-time fee · Lifetime access
