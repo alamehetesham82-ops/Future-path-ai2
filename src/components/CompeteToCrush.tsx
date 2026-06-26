@@ -227,11 +227,11 @@ const YOUTUBE_LEARNING_PLAYLISTS: Record<string, Record<string, {
   }
 };
 
-export function CompeteToCrush({ userProfile, user: initialUser }: { userProfile: any; user: any }) {
+export function CompeteToCrush({ user: initialUser }: { userProfile?: any; user?: any }) {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "verifying" | "success" | "failed">("idle");
   const [paymentError, setPaymentError] = useState<string>("");
-  const { user, authLoading, updateProfile } = useAuth();
+  const { currentUser: user, userProfile, loading: authLoading, updateProfile } = useAuth();
 
   const examsList = generateExamsCatalog();
 
@@ -339,8 +339,7 @@ export function CompeteToCrush({ userProfile, user: initialUser }: { userProfile
   useEffect(() => {
     const profile = userProfile || (user as any)?.profile;
     if (profile) {
-      const unlocked = !!profile.premiumUnlocked || !!profile.premium;
-      setIsUnlocked(unlocked);
+      setIsUnlocked(!!profile.premiumUnlocked);
     } else {
       setIsUnlocked(false);
     }
@@ -1484,7 +1483,6 @@ export function CompeteToCrush({ userProfile, user: initialUser }: { userProfile
             if (verifyData.success) {
               await updateProfile({
                 premiumUnlocked: true,
-                premium: true,
                 amountPaid: 49,
                 purchaseDate: new Date().toISOString(),
                 paymentId: response.razorpay_payment_id
