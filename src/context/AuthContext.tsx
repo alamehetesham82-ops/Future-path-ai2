@@ -500,13 +500,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await updateDoc(docRef, data);
     } catch (err) {
-      console.warn("Failed to update profile online:", err);
+      // If updateDoc fails (doc doesn't exist yet), use setDoc with merge
+      try {
+        await setDoc(docRef, data, { merge: true });
+      } catch (err2) {
+        console.warn("Failed to update profile online:", err2);
+      }
     }
     setUserProfile((prev) => {
-      if (!prev) return null;
-      const updated = { ...prev, ...data };
+      const base = prev || { uid: currentUser.uid, email: currentUser.email || "" } as any;
+      const updated = { ...base, ...data };
       localStorage.setItem(`futurepath_profile_${currentUser.uid}`, JSON.stringify(updated));
-      return updated;
+      return updated as UserProfile;
     });
   };
 
