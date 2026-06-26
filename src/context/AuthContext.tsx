@@ -31,21 +31,19 @@ export interface UserProfile {
   premiumUnlocked?: boolean;
   purchaseDate?: string | null;
   amountPaid?: number;
+  paymentId?: string;
 }
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
-  user: FirebaseUser | null; // alias for currentUser
   userProfile: UserProfile | null;
   loading: boolean;
-  authLoading: boolean; // alias for loading
   signup: (email: string, password: string, name: string, userClass: string, school: string, state: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
-  syncPremium: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -496,38 +494,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await sendPasswordResetEmail(auth, email);
   };
 
-  const syncPremium = async () => {
-    if (!currentUser) return;
-    const docRef = doc(db, "users", currentUser.uid);
-    try {
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        const isPremium = data.premium === true || data.premiumUnlocked === true;
-        if (isPremium && !(data.premium && data.premiumUnlocked)) {
-          await updateDoc(docRef, { premium: true, premiumUnlocked: true });
-        }
-        setUserProfile((prev) => {
-          if (!prev) return null;
-          const updated = { ...prev, premium: isPremium, premiumUnlocked: isPremium };
-          localStorage.setItem(`futurepath_profile_${currentUser.uid}`, JSON.stringify(updated));
-          return updated;
-        });
-      }
-    } catch (err) {
-      console.warn("syncPremium failed:", err);
-      // fallback: check localStorage
-      const cached = localStorage.getItem(`futurepath_profile_${currentUser.uid}`);
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          const isPremium = parsed.premium === true || parsed.premiumUnlocked === true;
-          setUserProfile((prev) => prev ? { ...prev, premium: isPremium, premiumUnlocked: isPremium } : prev);
-        } catch (e) {}
-      }
-    }
-  };
-
   const updateProfile = async (data: Partial<UserProfile>) => {
     if (!currentUser) return;
     const docRef = doc(db, "users", currentUser.uid);
@@ -538,10 +504,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUserProfile((prev) => {
       if (!prev) return null;
-      const merged = { ...prev, ...data };
-      // Auto-sync: if either premium flag is true, set both true
-      const isPremium = merged.premium === true || merged.premiumUnlocked === true;
-      const updated = { ...merged, premium: isPremium, premiumUnlocked: isPremium };
+      const updated = { ...prev, ...data };
       localStorage.setItem(`futurepath_profile_${currentUser.uid}`, JSON.stringify(updated));
       return updated;
     });
@@ -549,17 +512,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value = {
     currentUser,
-    user: currentUser, // alias so components can use either
     userProfile,
     loading,
-    authLoading: loading, // alias so components can use either
     signup,
     login,
     loginWithGoogle,
     logout,
     resetPassword,
-    updateProfile,
-    syncPremium
+    updateProfile
   };
 
   return (
