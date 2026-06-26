@@ -1,0 +1,27 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if user owns the folder path
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Check if the user is an administrator
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email != null && 
+         (request.auth.token.email.matches('admin@.*') || request.auth.token.email == 'alamehetesham82@gmail.com'));
+    }
+
+    match /users/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid) || isAdmin();
+    }
+  }
+}
