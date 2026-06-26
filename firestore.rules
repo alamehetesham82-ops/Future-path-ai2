@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net / Catch-all (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth helpers
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email != null && 
+         (request.auth.token.email.matches('admin@.*') || request.auth.token.email == 'alamehetesham82@gmail.com'));
+    }
+
+    // User profiles collection rules
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(uid) || isAdmin();
+    }
+
+    // Digital Portfolio (Certificates)
+    match /certificates/{certificateId} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Results Repository documents
+    match /results/{resultId} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Global Collections read rules (Scholarships, Colleges, Careers)
+    match /scholarships/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /colleges/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /careers/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Academic Roadmaps
+    match /academicRoadmaps/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Career Paths
+    match /careerPaths/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Exam Trackers
+    match /examTrackers/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Olympiads
+    match /olympiads/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Skills Development
+    match /skills/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Sports Corridor statistics and activities
+    match /sports/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Scholarship bookmarks
+    match /scholarship_bookmarks/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Compete To Crush Progress
+    match /competeProgress/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Compete To Crush Test Scores
+    match /competeTestScores/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+
+    // Subscriptions
+    match /subscriptions/{id} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
+      allow read, update, delete: if isAuthenticated() && (resource != null && (resource.data.uid == request.auth.uid || isAdmin()));
+    }
+  }
+}
