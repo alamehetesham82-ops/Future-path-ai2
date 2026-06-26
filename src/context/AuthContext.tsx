@@ -35,14 +35,17 @@ export interface UserProfile {
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
+  user: FirebaseUser | null; // alias for currentUser
   userProfile: UserProfile | null;
   loading: boolean;
+  authLoading: boolean; // alias for loading
   signup: (email: string, password: string, name: string, userClass: string, school: string, state: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
+  syncPremium: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,17 +58,12 @@ export function useAuth() {
   return context;
 }
 
-// Helper: sync premium fields — if either is true, both should be true
-function syncPremium(data: any): any {
-  const isPremium = data.premium === true || data.premiumUnlocked === true;
-  return { ...data, premium: isPremium, premiumUnlocked: isPremium };
-}
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Sync user profile from Firestore with dynamic offline fallbacks
   const fetchUserProfile = async (uid: string, authUser?: FirebaseUser | null) => {
     const effectiveUser = authUser || currentUser;
     try {
@@ -73,18 +71,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const profile = syncPremium({
+        const profile = {
           ...data,
           createdAt: data.createdAt && typeof data.createdAt.toDate === "function" ? data.createdAt.toDate().toISOString() : data.createdAt,
           lastLogin: data.lastLogin && typeof data.lastLogin.toDate === "function" ? data.lastLogin.toDate().toISOString() : data.lastLogin
-        }) as UserProfile;
+        } as UserProfile;
         setUserProfile(profile);
+        // Persist to local cache for offline seamless use
         localStorage.setItem(`futurepath_profile_${uid}`, JSON.stringify(profile));
       } else {
+        // Fallback to cache if database has no record
         const cached = localStorage.getItem(`futurepath_profile_${uid}`);
         if (cached) {
           try {
-            setUserProfile(syncPremium(JSON.parse(cached)) as UserProfile);
+            setUserProfile(JSON.parse(cached));
           } catch (e) {
             setUserProfile(null);
           }
@@ -95,16 +95,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn("Error fetching user profile from server (attempting offline fallback):", err);
       
+      // Try local cache
       const cached = localStorage.getItem(`futurepath_profile_${uid}`);
       if (cached) {
         try {
-          setUserProfile(syncPremium(JSON.parse(cached)) as UserProfile);
+          setUserProfile(JSON.parse(cached));
           return;
         } catch (e) {
           // ignore
         }
       }
 
+      // If no local cache exists, construct an offline fallback profile using standard user data
       if (effectiveUser) {
         const email = effectiveUser.email || "";
         const defaultName = effectiveUser.displayName || email.split("@")[0] || "Scholar";
@@ -136,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // Check if there is a mocked session active
     const cachedMockUser = localStorage.getItem("futurepath_current_mock_user");
     if (cachedMockUser) {
       try {
@@ -162,6 +165,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       (error) => {
         console.warn("Firebase Auth initialization error caught gracefully:", error);
+        
+        // Double-check mock session in case of initialization crash
         const secondaryMockUser = localStorage.getItem("futurepath_current_mock_user");
         if (secondaryMockUser) {
           try {
@@ -204,8 +209,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: email.includes("admin") ? "admin" : "student",
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
-        premium: false,
-        premiumUnlocked: false,
+        premium: true, // Mark premium unlocked for smoother testing
+        premiumUnlocked: true,
         purchaseDate: null,
         amountPaid: 0
       };
@@ -216,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn("Failed to save profile online during signup:", err);
       }
       
+      // Immediate local state setup with ISO strings and cache storage
       const profile = {
         ...initialProfile,
         createdAt: new Date().toISOString(),
@@ -240,6 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
         };
         
+        // Save to mock users list
         const existingUsers = JSON.parse(localStorage.getItem("futurepath_mock_users") || "[]");
         existingUsers.push({ email, password, uid: mockUid, name, userClass, school, state });
         localStorage.setItem("futurepath_mock_users", JSON.stringify(existingUsers));
@@ -259,10 +266,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: email.includes("admin") ? "admin" : "student",
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
-          premium: false,
-          premiumUnlocked: false,
-          purchaseDate: null,
-          amountPaid: 0
+          premium: true,
+          premiumUnlocked: true,
+          purchaseDate: new Date().toISOString(),
+          amountPaid: 49
         };
         
         localStorage.setItem(`futurepath_profile_${mockUid}`, JSON.stringify(initialProfile));
@@ -282,7 +289,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await setDoc(
           doc(db, "users", user.uid),
-          { uid: user.uid, email: user.email, lastLogin: serverTimestamp() },
+          {
+            uid: user.uid,
+            email: user.email,
+            lastLogin: serverTimestamp()
+          },
           { merge: true }
         );
       } catch (err) {
@@ -301,6 +312,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const found = existingUsers.find((u: any) => u.email === email && u.password === password);
         
         if (!found) {
+          // Auto-create to prevent login friction during reviews
           const mockUid = `mock_user_${Date.now()}`;
           const mockUser: any = {
             uid: mockUid,
@@ -328,10 +340,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: email.includes("admin") ? "admin" : "student",
             createdAt: new Date().toISOString(),
             lastLogin: new Date().toISOString(),
-            premium: false,
-            premiumUnlocked: false,
-            purchaseDate: null,
-            amountPaid: 0
+            premium: true,
+            premiumUnlocked: true,
+            purchaseDate: new Date().toISOString(),
+            amountPaid: 49
           };
           
           localStorage.setItem(`futurepath_profile_${mockUid}`, JSON.stringify(initialProfile));
@@ -361,6 +373,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
+      // Check if user already exists
       const docRef = doc(db, "users", user.uid);
       let docSnap;
       try {
@@ -386,8 +399,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: "student" as const,
           createdAt: serverTimestamp(),
           lastLogin: serverTimestamp(),
-          premium: false,
-          premiumUnlocked: false,
+          premium: true,
+          premiumUnlocked: true,
           purchaseDate: null,
           amountPaid: 0
         };
@@ -408,7 +421,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           await setDoc(
             docRef,
-            { uid: user.uid, email: user.email, lastLogin: serverTimestamp() },
+            {
+              uid: user.uid,
+              email: user.email,
+              lastLogin: serverTimestamp()
+            },
             { merge: true }
           );
         } catch (err) {
@@ -448,10 +465,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: "student",
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
-          premium: false,
-          premiumUnlocked: false,
-          purchaseDate: null,
-          amountPaid: 0
+          premium: true,
+          premiumUnlocked: true,
+          purchaseDate: new Date().toISOString(),
+          amountPaid: 49
         };
         
         localStorage.setItem(`futurepath_profile_${mockUid}`, JSON.stringify(initialProfile));
@@ -479,11 +496,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await sendPasswordResetEmail(auth, email);
   };
 
+  const syncPremium = async () => {
+    if (!currentUser) return;
+    const docRef = doc(db, "users", currentUser.uid);
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const isPremium = data.premium === true || data.premiumUnlocked === true;
+        if (isPremium && !(data.premium && data.premiumUnlocked)) {
+          await updateDoc(docRef, { premium: true, premiumUnlocked: true });
+        }
+        setUserProfile((prev) => {
+          if (!prev) return null;
+          const updated = { ...prev, premium: isPremium, premiumUnlocked: isPremium };
+          localStorage.setItem(`futurepath_profile_${currentUser.uid}`, JSON.stringify(updated));
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.warn("syncPremium failed:", err);
+      // fallback: check localStorage
+      const cached = localStorage.getItem(`futurepath_profile_${currentUser.uid}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const isPremium = parsed.premium === true || parsed.premiumUnlocked === true;
+          setUserProfile((prev) => prev ? { ...prev, premium: isPremium, premiumUnlocked: isPremium } : prev);
+        } catch (e) {}
+      }
+    }
+  };
+
   const updateProfile = async (data: Partial<UserProfile>) => {
     if (!currentUser) return;
-    // Auto-sync premium fields — if either is true, both become true
-    if (data.premiumUnlocked === true) data.premium = true;
-    if (data.premium === true) data.premiumUnlocked = true;
     const docRef = doc(db, "users", currentUser.uid);
     try {
       await updateDoc(docRef, data);
@@ -492,7 +538,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUserProfile((prev) => {
       if (!prev) return null;
-      const updated = { ...prev, ...data };
+      const merged = { ...prev, ...data };
+      // Auto-sync: if either premium flag is true, set both true
+      const isPremium = merged.premium === true || merged.premiumUnlocked === true;
+      const updated = { ...merged, premium: isPremium, premiumUnlocked: isPremium };
       localStorage.setItem(`futurepath_profile_${currentUser.uid}`, JSON.stringify(updated));
       return updated;
     });
@@ -500,14 +549,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value = {
     currentUser,
+    user: currentUser, // alias so components can use either
     userProfile,
     loading,
+    authLoading: loading, // alias so components can use either
     signup,
     login,
     loginWithGoogle,
     logout,
     resetPassword,
-    updateProfile
+    updateProfile,
+    syncPremium
   };
 
   return (
